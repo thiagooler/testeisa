@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aprovação de Fotos</title>
+    <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f0f2f5;
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                color: #333;
+            }
+            .gallery {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 20px;
+                max-width: 1200px;
+                margin: 20px auto;
+            }
+            .photo-card {
+                background-color: #fff;
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                overflow: hidden;
+                text-align: left;
+                position: relative;
+            }
+            .photo-card img {
+                width: 100%;
+                display: block;
+            }
+            .photo-info {
+                padding: 15px;
+            }
+            .photo-info h3 {
+                margin: 0 0 10px;
+                color: #555;
+                font-size: 1em;
+            }
+            .edit-section {
+                padding: 15px;
+                background-color: #f9f9f9;
+                border-top: 1px solid #eee;
+                display: none; /* Inicia escondido */
+            }
+            .edit-section textarea {
+                width: 95%;
+                height: 60px;
+                padding: 8px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                resize: vertical;
+                margin-top: 10px;
+            }
+            .btn-toggle-edit, .btn-submit-all {
+                background-color: #007bff;
+                color: white;
+                padding: 10px 15px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                margin-top: 10px;
+                font-size: 1em;
+                display: inline-block;
+                transition: background-color 0.3s;
+            }
+            .btn-toggle-edit {
+                background-color: #6c757d;
+            }
+            .btn-toggle-edit.active {
+                background-color: #dc3545;
+            }
+            .btn-toggle-edit:hover {
+                background-color: #5a6268;
+            }
+            .btn-submit-all {
+                background-color: #28a745;
+                padding: 15px 30px;
+                margin-top: 30px;
+            }
+            .btn-submit-all:hover {
+                background-color: #218838;
+            }
+        </style>
+</head>
+<body>
+
+    <h1>Aprovação de Fotos</h1>
+    <p>Clique em "Solicitar edição" para comentar sobre as alterações desejadas em cada foto. Ao final, clique no botão para aprovar o pedido e enviar o relatório.</p>
+
+    <div class="gallery" id="photo-gallery">
+        </div>
+
+    <button class="btn-submit-all" onclick="gerarRelatorio()">Aprovar Pedido e Enviar</button>
+
+    <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                fetchPhotos();
+            });
+
+            async function fetchPhotos() {
+                try {
+                    const response = await fetch('./fotos/');
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const links = Array.from(doc.querySelectorAll('a'));
+                    const photoGallery = document.getElementById('photo-gallery');
+
+                    const photoLinks = links.filter(link => {
+                        const href = link.getAttribute('href');
+                        return href && (href.toLowerCase().endsWith('.jpg') || href.toLowerCase().endsWith('.jpeg') || href.toLowerCase().endsWith('.png'));
+                    });
+
+                    if (photoLinks.length === 0) {
+                        photoGallery.innerHTML = '<p>Nenhuma foto encontrada na pasta /fotos.</p>';
+                        return;
+                    }
+
+                    photoLinks.forEach((link, index) => {
+                        const filename = link.getAttribute('href');
+                        const photoCard = document.createElement('div');
+                        photoCard.className = 'photo-card';
+                        photoCard.dataset.filename = filename;
+                        photoCard.innerHTML = `
+                            <img src="./fotos/${filename}" alt="Foto #${index + 1}">
+                            <div class="photo-info">
+                                <h3>Foto #${index + 1}</h3>
+                                <button class="btn-toggle-edit" onclick="toggleEdit(${index})">Solicitar edição</button>
+                            </div>
+                            <div class="edit-section" id="edit-section-${index}">
+                                <textarea placeholder="Descreva a alteração desejada nesta foto..."></textarea>
+                            </div>
+                        `;
+                        photoGallery.appendChild(photoCard);
+                    });
+                } catch (error) {
+                    console.error('Erro ao carregar as fotos:', error);
+                    const photoGallery = document.getElementById('photo-gallery');
+                    photoGallery.innerHTML = '<p>Não foi possível carregar as fotos. Verifique se a pasta `fotos` existe.</p>';
+                }
+            }
+
+            function toggleEdit(index) {
+                const editSection = document.getElementById(`edit-section-${index}`);
+                const toggleButton = document.querySelector(`.photo-card:nth-child(${index + 1}) .btn-toggle-edit`);
+                
+                if (editSection.style.display === 'block') {
+                    editSection.style.display = 'none';
+                    toggleButton.classList.remove('active');
+                    toggleButton.innerText = 'Solicitar edição';
+                } else {
+                    editSection.style.display = 'block';
+                    toggleButton.classList.add('active');
+                    toggleButton.innerText = 'Cancelar solicitação';
+                }
+            }
+
+            function gerarRelatorio() {
+                const photoCards = document.querySelectorAll('.photo-card');
+                let mensagem = "Relatório de aprovação de fotos:\n\n";
+                let temAlteracao = false;
+
+                photoCards.forEach((card, index) => {
+                    const editSection = card.querySelector('.edit-section');
+                    const textarea = editSection.querySelector('textarea');
+
+                    if (editSection.style.display === 'block' && textarea.value.trim() !== '') {
+                        temAlteracao = true;
+                        const filename = card.dataset.filename;
+                        const comentario = textarea.value.trim();
+                        mensagem += 'Foto #' + (index + 1) + '\n';
+                        mensagem += 'Nome do arquivo: ' + filename + '\n';
+                        mensagem += 'Alteração desejada: ' + comentario + '\n\n';
+                    }
+                });
+
+                if (!temAlteracao) {
+                    mensagem += "✅ Nenhum pedido de alteração. Fotos aprovadas!\n\n";
+                }
+
+                mensagem += "Pedido aprovado. Por favor, prossiga com a produção.";
+
+                const numeroWhatsapp = "5542998370150"; 
+                
+                const url = 'https://api.whatsapp.com/send?phone=' + numeroWhatsapp + '&text=' + encodeURIComponent(mensagem);
+                
+                window.open(url, '_blank');
+            }
+        </script>
+
+</body>
+</html>
